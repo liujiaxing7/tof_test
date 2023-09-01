@@ -623,7 +623,7 @@ int findInterval(const std::vector<Interval>& intervals, double value) {
     return -1;  // 如果没有匹配的区间，返回-1
 }
 
-void drawTopView(std::string inputSaveDir,std::vector<Eigen::Vector3d> cloudPoints,std::string fileName) {
+void drawTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> cloudPoints,std::string fileName) {
     // 计算图像大小
     double minX = std::numeric_limits<double>::max();
     double maxX = -std::numeric_limits<double>::max();
@@ -693,21 +693,23 @@ void drawTopView(std::string inputSaveDir,std::vector<Eigen::Vector3d> cloudPoin
 
         cv::Vec3b color(255, 255, 255); // 白色
         if (projectedX >= 0 && projectedX < WIDTH && projectedY >= 0 && projectedY < HEIGHT) {
-            topViews[interval_index].at<cv::Vec3b>(projectedY, projectedX) = color; // 在图像上设置颜色
+            topViews[interval_index].at<cv::Vec3b>(projectedY, projectedX) = color; // 根据不同的高度区间在图像上设置颜色
+            topView.at<cv::Vec3b>(projectedY, projectedX) = color; // 根据在图像上设置颜色
         }
     }
 
     // 保存图像
     for (int i = 0; i < 5; ++i) {
-        std::size_t pos = fileName.find_last_of(".");  // 查找最后一个点的位置
-        std::string result = fileName.substr(0, pos);  // 获取从开头到最后一个点之前的子字符串
-        std::string file = "/media/xin/data1/test_data/tof_test/louti_data_2023_0822_2_split/" + result +"/" + std::to_string(i) + fileName;
+        std::size_t pos = inputSavePath.find_last_of(".");  // 查找最后一个点的位置
+        std::string result = inputSavePath.substr(0, pos);  // 获取从开头到最后一个点之前的子字符串
+        std::string file = result +"/" + std::to_string(i) + fileName;
         file_op::File::MkdirFromFile(file);
         cv::imwrite(file, topViews[i]);
     }
 
       // 显示图像
-//    cv::imwrite(inputSaveDir, topView);
+    file_op::File::MkdirFromFile(inputSavePath);
+    cv::imwrite(inputSavePath, topView);
 //    cv::imshow("res",topView);
 //    cv::waitKey(10000);
 }
@@ -780,9 +782,11 @@ int main() {
         Eigen::Matrix<double, 3, 4> P = Eigen::Matrix<double, 3, 4>::Zero();
         P << p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11];
         std::string fileName = GetFileNameFromPath(item.imageLeft);
-        std::string inputImagePath = "/media/xin/data1/test_data/tof_test/louti_data_2023_0822_2_new/" + fileName;
-        drawTopView(inputImagePath,points,fileName);   //绘制tof文件点
-//        break;
+        std::string lastTwoParts = getLastTwoPathParts(inputDir);
+//        std::string topViewPath = "/media/xin/data1/test_data/tof_test/louti_data_2023_0822_2_new/";
+        std::string topViewPath = "/home/xin/Desktop/tof_test/";
+        std::string ImagePath = topViewPath + lastTwoParts + item.imageCam0;
+        drawTopView(ImagePath,points,fileName);   //绘制tof文件点
         // 转3D点
 //        TofPointsInImage2DepthValues(points, imagePoints, pointsSelected, configParam.structure.leftcamera2tof, P,
 //                                     depthValues);
@@ -796,7 +800,7 @@ int main() {
 //        for (const Eigen::Vector3d& point : cloudPoints) {
 //            std::cout << "Point coordinates: (" << point.x() << ", " << point.y() << ", " << point.z() << ")" << std::endl;
 //        }
-//        drawTopView(cloudPoints);
+//        drawTopView(inputImagePath,points,fileName);
     }
     return 0;
 }
