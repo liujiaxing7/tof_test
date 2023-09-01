@@ -434,7 +434,8 @@ bool GetData(const std::string inputDir, std::vector<SyncDataFile>& dataset, con
 {
     std::string imagesTxt = inputDir + "/image.txt";
     std::string lidarTxt = inputDir + "/lidar.txt";
-    std::string syncTxt = inputDir + "/sync.txt";
+//    std::string syncTxt = inputDir + "/sync.txt";
+    std::string syncTxt = inputDir + "/test.txt";
     const bool synced = not EXIST(imagesTxt);
     bool binocular = false;
     std::vector<std::string> imageNameList, lidarNameList;
@@ -612,7 +613,17 @@ void getPointCloud(cv::Mat imageDisplay,std::vector<cv::Point> imagePoints, std:
     }
 }
 
-void drawTopView(std::string inputSaveDir,std::vector<Eigen::Vector3d> cloudPoints){
+// 判断给定数值属于哪个区间
+int findInterval(const std::vector<Interval>& intervals, double value) {
+    for (int i = 0; i < intervals.size(); ++i) {
+        if (value >= intervals[i].lower_bound && value <= intervals[i].upper_bound) {
+            return i;  // 返回区间的索引
+        }
+    }
+    return -1;  // 如果没有匹配的区间，返回-1
+}
+
+void drawTopView(std::string inputSaveDir,std::vector<Eigen::Vector3d> cloudPoints,std::string fileName) {
     // 计算图像大小
     double minX = std::numeric_limits<double>::max();
     double maxX = -std::numeric_limits<double>::max();
@@ -621,7 +632,7 @@ void drawTopView(std::string inputSaveDir,std::vector<Eigen::Vector3d> cloudPoin
     double minZ = std::numeric_limits<double>::max();
     double maxZ = -std::numeric_limits<double>::max();
 
-    for (const Eigen::Vector3d& point : cloudPoints) {
+    for (const Eigen::Vector3d &point: cloudPoints) {
         if (point.x() < minX) minX = point.x();
         if (point.x() > maxX) maxX = point.x();
         if (point.y() < minY) minY = point.y();
@@ -634,56 +645,71 @@ void drawTopView(std::string inputSaveDir,std::vector<Eigen::Vector3d> cloudPoin
     double absMinZ = std::abs(minZ);
 
     // 遍历点云，修改每个点的值
-    for (Eigen::Vector3d& point : cloudPoints) {
+    for (Eigen::Vector3d &point: cloudPoints) {
         point.x() += absMinX;
         point.y() += absMinY;
-        point.z() += absMinZ;
+//        point.z() += absMinZ;
     }
-/*
     // 创建图像
-    double scaleFactorW = WIDTH / (maxX - minX);
-    double scaleFactorH = HEIGHT / (maxY - minY);
+    double scaleFactorW = WIDTH / (maxY - minY);
+    double scaleFactorH = HEIGHT / (maxX - minX);
+
+
     cv::Mat topView(HEIGHT, WIDTH, CV_8UC3, cv::Scalar(0, 0, 0));// 创建黑色背景图像
 
-    // 将点云坐标按照高度投影到图像
-    for (const Eigen::Vector3d& point : cloudPoints) {
-        int projectedX = static_cast<int>((point.x() - (minX + absMinX)) * scaleFactorW); // 映射到图像X坐标
-        int projectedY = static_cast<int>((point.y() - (minY + absMinY)) * scaleFactorH); // 映射到图像Y坐标
+    // 定义区间数和区间高度差
+    int numIntervals = 5; // 将高度范围分成 5 个区间
+    double intervalHeight = (maxZ - minZ) / numIntervals;
+
+    std::vector<cv::Mat> topViews;  // 存储 cv::Mat 对象的向量
+
+    for (int i = 0; i < numIntervals; ++i) {
+        cv::Mat topView(HEIGHT, WIDTH, CV_8UC3, cv::Scalar(0, 0, 0));
+        topViews.push_back(topView);  // 将创建的 cv::Mat 对象添加到向量中
+    }
+
+
+    // 构建区间数据
+    std::vector<Interval> intervals;
+    for (int i = 0; i < 5; ++i) {
+        Interval interval;
+        interval.lower_bound = minZ + i * intervalHeight;
+        interval.upper_bound = minZ + (i + 1) * intervalHeight;
+        intervals.push_back(interval);
+    }
+
+    // 输出区间范围
+    std::cout << "区间范围：" << std::endl;
+    for (const auto& interval : intervals) {
+        std::cout << "[" << interval.lower_bound << ", " << interval.upper_bound << "]" << std::endl;
+    }
+
+    // 将所有点云坐标按照高度投影到图像
+    for (const Eigen::Vector3d &point: cloudPoints) {
+        int interval_index = findInterval(intervals, point.z());
+//        std::cout << interval_index << std::endl;
+        int projectedX = static_cast<int>((point.y() - (minY + absMinY)) * scaleFactorW); // 映射到图像X坐标
+        int projectedY = static_cast<int>((point.x() - (minX + absMinX)) * scaleFactorH); // 映射到图像Y坐标
 
         cv::Vec3b color(255, 255, 255); // 白色
         if (projectedX >= 0 && projectedX < WIDTH && projectedY >= 0 && projectedY < HEIGHT) {
-            topView.at<cv::Vec3b>(projectedY, projectedX) = color; // 在图像上设置颜色
+            topViews[interval_index].at<cv::Vec3b>(projectedY, projectedX) = color; // 在图像上设置颜色
         }
-*/
-
-        // 创建图像
-        double scaleFactorW = WIDTH / (maxY - minY);
-        double scaleFactorH = HEIGHT / (maxZ - minZ);
-        cv::Mat topView(HEIGHT, WIDTH, CV_8UC3, cv::Scalar(0, 0, 0));// 创建黑色背景图像
-
-        // 将点云坐标按照高度投影到图像
-        for (const Eigen::Vector3d& point : cloudPoints) {
-            int projectedX = static_cast<int>((point.y() - (minY + absMinY)) * scaleFactorW); // 映射到图像X坐标
-            int projectedY = static_cast<int>((point.z() - (minZ + absMinZ)) * scaleFactorH); // 映射到图像Y坐标
-
-            cv::Vec3b color(255, 255, 255); // 白色
-            if (projectedX >= 0 && projectedX < WIDTH && projectedY >= 0 && projectedY < HEIGHT) {
-                topView.at<cv::Vec3b>(projectedY, projectedX) = color; // 在图像上设置颜色
-            }
-
-
-
-//        else {
-//            // 将超出范围的点绘制在图像边缘上（设置为红色）
-//            int borderX = std::min(std::max(projectedX, 0), WIDTH - 1);
-//            int borderY = std::min(std::max(projectedY, 0), HEIGHT - 1);
-//            image.at<cv::Vec3b>(borderY, borderX) = cv::Vec3b(0, 0, 255);
-//        }
     }
-    // 显示图像
-    cv::imwrite(inputSaveDir, topView);
+
+    // 保存图像
+    for (int i = 0; i < 5; ++i) {
+        std::size_t pos = fileName.find_last_of(".");  // 查找最后一个点的位置
+        std::string result = fileName.substr(0, pos);  // 获取从开头到最后一个点之前的子字符串
+        std::string file = "/media/xin/data1/test_data/tof_test/louti_data_2023_0822_2_split/" + result +"/" + std::to_string(i) + fileName;
+        file_op::File::MkdirFromFile(file);
+        cv::imwrite(file, topViews[i]);
+    }
+
+      // 显示图像
+//    cv::imwrite(inputSaveDir, topView);
 //    cv::imshow("res",topView);
-//    cv::waitKey(500);
+//    cv::waitKey(10000);
 }
 
 
@@ -705,7 +731,7 @@ int main() {
 
     for (size_t i = 0; i < size; ++i) {
         SyncDataFile item = dataset.at(i);
-//        item.imageLeft = "/media/xin/data1/data/parker_data/2022_08_22/louti/data_2023_0822_2/20210223_1354/cam0/08_1614045245455140.jpg";
+//        item.imageLeft = "/media/xin/data1/data/parker_data/2022_08_22/louti/data_2023_0822_2/20210223_1355/cam0/04_1614045299962078.jpg";
         std::string imageLeftPath(item.imageLeft);
 //        std::cout << "item.imageLeft: " << item.imageLeft << ", item.imageCam0: " << item.imageCam0 << std::endl;
         auto imageLeft = cv::imread(imageLeftPath, cv::IMREAD_GRAYSCALE);
@@ -733,7 +759,7 @@ int main() {
         psl::TofDepthData tof;
         std::vector<Eigen::Vector3d> points;
         std::string tofpath = item.tof; //tof配置文件路径
-//        std::string tofpath = "/media/xin/data1/data/parker_data/2022_08_22/louti/data_2023_0822_2/20210223_1354/tof/08_1614045245446440_tof.yaml"; //tof配置文件路径
+//        std::string tofpath = "/media/xin/data1/data/parker_data/2022_08_22/louti/data_2023_0822_2/20210223_1355/tof/04_1614045299894440_tof.yaml"; //tof配置文件路径
         GetTof(tofpath, tof);
         GetTofPoints(tof, points, configParam.structure.tofAngle); // tof点坐标转换
 
@@ -755,7 +781,8 @@ int main() {
         P << p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11];
         std::string fileName = GetFileNameFromPath(item.imageLeft);
         std::string inputImagePath = "/media/xin/data1/test_data/tof_test/louti_data_2023_0822_2_new/" + fileName;
-        drawTopView(inputImagePath,points);   //绘制tof文件点
+        drawTopView(inputImagePath,points,fileName);   //绘制tof文件点
+//        break;
         // 转3D点
 //        TofPointsInImage2DepthValues(points, imagePoints, pointsSelected, configParam.structure.leftcamera2tof, P,
 //                                     depthValues);

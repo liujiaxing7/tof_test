@@ -15,6 +15,11 @@ struct Point3D {
     double x, y, z;
 };
 
+// 定义区间结构体
+struct Interval {
+    double lower_bound;  // 区间下界
+    double upper_bound;  // 区间上界
+};
 
 struct SyncDataFile
 {
