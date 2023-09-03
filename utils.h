@@ -14,6 +14,14 @@ double camera_fy;// = 519.0;
 struct Point3D {
     double x, y, z;
 };
+struct BoxInfo{
+    float cx;
+    float cy;
+    float w;
+    float h;
+};
+
+
 
 // 定义区间结构体
 struct Interval {
