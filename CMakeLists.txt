@@ -17,6 +17,8 @@ add_executable(tof_test
         type_check.cpp
         type_check.h
         utils.h
+        DbscanMethod.cpp
+        DbscanMethod.h
         )
 # opencv
 find_package(OpenCV REQUIRED)
