@@ -605,8 +605,8 @@ int getBox(std::string imageFile,BoxInfo& box,std::string inputSavePath) {
         // 绘制边界框
         cv::rectangle(image, cv::Rect(box.cx, box.cy, box.w, box.h), cv::Scalar(0, 255, 0), 2);
         // 显示图像
-//        file_op::File::MkdirFromFile(detectPath);
-//        cv::imwrite(detectPath,image);
+        file_op::File::MkdirFromFile(detectPath);
+        cv::imwrite(detectPath,image);
 //        cv::imwrite("/home/xin/Desktop/ll/pp/1.png",image);
 //        cv::imshow("ress",image);
 //        cv::waitKey(200000);
@@ -787,27 +787,14 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
     double minZ = std::numeric_limits<double>::max();
     double maxZ = -std::numeric_limits<double>::max();
 
-
-    for (const Eigen::Vector3d &point: selectCloudPoints) {
-        if (-point.y() < minY) minY = -point.y();
-        if (-point.y() > maxY) maxY = -point.y();
-        if (point.z() < minZ) minZ = point.z();
-        if (point.z() > maxZ) maxZ = point.z();
-    }
-    std::cout << "高度最小值 " << minY << "\n高度最大值: " << maxY << std::endl;
-    std::cout << "距离最小值 " << minZ << "\n距离最大值: " << maxZ << std::endl;
-
-
     cv::Mat topViewAll(scaleFactorW, scaleFactorH, CV_8UC3, cv::Scalar(0, 0, 0));// 创建黑色背景图像
     cv::Mat topViewDesk(scaleFactorW, scaleFactorH, CV_8UC3, cv::Scalar(0, 0, 0));// 创建带有桌子的黑色背景图像
     cv::Mat topViewDeskSelect(scaleFactorW, scaleFactorH, CV_8UC3, cv::Scalar(0, 0, 0));// 创建固定区间的黑色背景图像
 
-
-
     // 将所有的点云投影
     for (const Eigen::Vector3d &point: cloudPoints) {
         int projectedX = static_cast<int>(((point.x()) * 100 + center_x)); // 映射到图像Y坐标
-        int projectedY = static_cast<int>((-point.z()) * 100 + center_y)+400; // 映射到图像X坐标
+        int projectedY = static_cast<int>((-point.z()) * 100 + center_y) + 400; // 映射到图像X坐标
         cv::Vec3b color(255, 255, 255); // 白色
         if (projectedX >= 0 && projectedX < scaleFactorW && projectedY >= 0 && projectedY < scaleFactorH) {
             topViewAll.at<cv::Vec3b>(projectedY, projectedX) = color; // 在图像上设置颜色
@@ -818,6 +805,8 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
     std::cout << "【" << 0.5 << ", " << 1.5 << "】" << std::endl;
     // 将筛选的带有桌子的点云坐标按照高度投影到图像
     for (const Eigen::Vector3d &point: selectCloudPoints) {
+        if (-point.y() < minY) minY = -point.y();
+        if (-point.y() > maxY) maxY = -point.y();
         int projectedX = static_cast<int>(((point.x()) * 100 + center_x)); // 映射到图像Y坐标
         int projectedY = static_cast<int>((-point.z()) * 100 + center_y)+400; // 映射到图像X坐标
         cv::Vec3b color(255, 255, 255); // 白色
@@ -826,9 +815,13 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
             topViewDesk.at<cv::Vec3b>(projectedY, projectedX) = color; // 在图像上设置颜色
             if ((-point.y()) >= 0.5 && (-point.y()) < 1.5){
                 topViewDeskSelect.at<cv::Vec3b>(projectedY, projectedX) = color; // 根据不同的高度区间在图像上设置颜色
+                if (point.z() < minZ) minZ = point.z();
+                if (point.z() > maxZ) maxZ = point.z();
             }
         }
     }
+    std::cout << "高度最小值 " << minY << "\n高度最大值: " << maxY << std::endl;
+    std::cout << "距离最小值 " << minZ << "\n距离最大值: " << maxZ << std::endl;
     // 标注桌子的最小和最大距离
     cv::Point textPosition(600, 950);
     std::ostringstream oss;
@@ -840,18 +833,18 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
     std::string result = inputSavePath.substr(0, pos);  // 获取从开头到最后一个点之前的子字符串
 
     // 显示图像
-//    std::string topViewPath = result +"/" + "all_" + fileName;
-//    std::string topViewDeskPath = result +"/" + "desk_" + fileName;
-//    std::string topViewDeskSelectPath = result +"/" + "select_" + fileName;
-//    file_op::File::MkdirFromFile(topViewPath);
-//    cv::imwrite(topViewPath, topViewAll);
-//    cv::imwrite(topViewDeskPath, topViewDesk);
-//    cv::imwrite(topViewDeskSelectPath, topViewDeskSelect);
+    std::string topViewPath = result +"/" + "all_" + fileName;
+    std::string topViewDeskPath = result +"/" + "desk_" + fileName;
+    std::string topViewDeskSelectPath = result +"/" + "select_" + fileName;
+    file_op::File::MkdirFromFile(topViewPath);
+    cv::imwrite(topViewPath, topViewAll);
+    cv::imwrite(topViewDeskPath, topViewDesk);
+    cv::imwrite(topViewDeskSelectPath, topViewDeskSelect);
 
-    cv::imshow("all",topViewAll);
-    cv::imshow("desk",topViewDesk);
-    cv::imshow("select",topViewDeskSelect);
-    cv::waitKey(5000);
+//    cv::imshow("all",topViewAll);
+//    cv::imshow("desk",topViewDesk);
+//    cv::imshow("select",topViewDeskSelect);
+//    cv::waitKey(5000);
 }
 
 bool GetImageData(const std::string inputDir, std::vector<SyncDataFile>& dataset, const bool &flag)
@@ -923,14 +916,14 @@ int cropImage(cv::Mat image,cv::Mat &depth) {
 int main() {
     // 读取图像
     std::vector<SyncDataFile> dataset;
-    std::string inputDir = "/media/xin/data1/data/parker_data/result/CREStereo_MiDaS/MADNet_10.6.0/640_400/louti/data_2023_0822_2"; //数据集路径
+    std::string inputDir = "/media/xin/data1/data/parker_data/result/CREStereo_MiDaS/MADNet_10.2.26/400_640/louti/data_2023_0822_2"; //数据集路径
     psl::CameraMoudleParam param;
     std::string cameraConfigFile = "/home/xin/zhang/c_project/tof/tof_test/config/config.yaml"; //相机配置文件路径
     GetCameraConfig(cameraConfigFile, param);  // 获取相机配置数据
 
     const std::string parkerDir = "/home/xin/zhang/c_project/tof/tof_label/config/param_parker.yaml"; //parker配置文件路径
     // std::string topViewPath = "/media/xin/data1/test_data/tof_test/louti_data_2023_0822_2_last/tof_with_desk_select/";
-    std::string topViewPath = "/media/xin/data1/test_data/tof_test/MADNet_test/10.6.0/400_test/";
+    std::string topViewPath = "/media/xin/data1/test_data/tof_test/MADNet_test/10.2.26/400_test_min_tof/";
     ConfigParam configParam;
     GetParkerConfig(parkerDir, configParam);  //获取parker配置数据
     GetImageData(inputDir, dataset, true); // 获取数据集
