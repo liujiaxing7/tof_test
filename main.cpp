@@ -607,9 +607,9 @@ int getBox(std::string imageFile,BoxInfo& box,std::string inputSavePath) {
         // 显示图像
 //        file_op::File::MkdirFromFile(detectPath);
 //        cv::imwrite(detectPath,image);
-        cv::imwrite("/home/xin/Desktop/ll/pp/1.png",image);
-        cv::imshow("ress",image);
-        cv::waitKey(200000);
+//        cv::imwrite("/home/xin/Desktop/ll/pp/1.png",image);
+//        cv::imshow("ress",image);
+//        cv::waitKey(200000);
     }
     return 0;
 }
@@ -746,7 +746,7 @@ void drawTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> cloudPoi
     // 将所有点云坐标按照高度投影到图像
     for (const Eigen::Vector3d &point: cloudPoints) {
         int interval_index = findInterval(intervals, point.z());
-        int projectedX = static_cast<int>((-point.y()) * 100 + center_x); // 映射到图像X坐标
+        int projectedX = static_cast<int>((-(-point.y())) * 100 + center_x); // 映射到图像X坐标
         int projectedY = static_cast<int>(((-point.x()) * 100 + center_y)+400); // 映射到图像Y坐标
         cv::Vec3b color(255, 255, 255); // 白色
 
@@ -784,13 +784,19 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
 
     double minY = std::numeric_limits<double>::max();
     double maxY = -std::numeric_limits<double>::max();
+    double minZ = std::numeric_limits<double>::max();
+    double maxZ = -std::numeric_limits<double>::max();
+
 
     for (const Eigen::Vector3d &point: selectCloudPoints) {
-        if (point.y() < minY) minY = point.y();
-        if (point.y() > maxY) maxY = point.y();
+        if (-point.y() < minY) minY = -point.y();
+        if (-point.y() > maxY) maxY = -point.y();
+        if (point.z() < minZ) minZ = point.z();
+        if (point.z() > maxZ) maxZ = point.z();
     }
     std::cout << "高度最小值 " << minY << "\n高度最大值: " << maxY << std::endl;
-    std::cout << "高度区间范围：[-0.8,-0.2] "  << std::endl;
+    std::cout << "距离最小值 " << minZ << "\n距离最大值: " << maxZ << std::endl;
+
 
     cv::Mat topViewAll(scaleFactorW, scaleFactorH, CV_8UC3, cv::Scalar(0, 0, 0));// 创建黑色背景图像
     cv::Mat topViewDesk(scaleFactorW, scaleFactorH, CV_8UC3, cv::Scalar(0, 0, 0));// 创建带有桌子的黑色背景图像
@@ -808,6 +814,8 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
         }
     }
 
+//    std::cout << "【" << ((maxY + minY)/2) << ", " << maxY << "】" << std::endl;
+    std::cout << "【" << 0.5 << ", " << 1.5 << "】" << std::endl;
     // 将筛选的带有桌子的点云坐标按照高度投影到图像
     for (const Eigen::Vector3d &point: selectCloudPoints) {
         int projectedX = static_cast<int>(((point.x()) * 100 + center_x)); // 映射到图像Y坐标
@@ -816,30 +824,34 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
 
         if (projectedX >= 0 && projectedX < scaleFactorW && projectedY >= 0 && projectedY < scaleFactorH) {
             topViewDesk.at<cv::Vec3b>(projectedY, projectedX) = color; // 在图像上设置颜色
-            if (point.y() >= (-0.8) && point.y() < (-0.2)){
+            if ((-point.y()) >= 0.5 && (-point.y()) < 1.5){
                 topViewDeskSelect.at<cv::Vec3b>(projectedY, projectedX) = color; // 根据不同的高度区间在图像上设置颜色
             }
         }
     }
-
+    // 标注桌子的最小和最大距离
+    cv::Point textPosition(600, 950);
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2) << minZ;
+    std::string min_tof = "min_tof:" + oss.str();
+    cv::putText(topViewDeskSelect, min_tof, textPosition, cv::FONT_HERSHEY_SIMPLEX, 1.5, cv::Scalar(0, 0, 255), 2);
     // 保存图像
-//    std::size_t pos = inputSavePath.find_last_of(".");  // 查找最后一个点的位置
-//    std::string result = inputSavePath.substr(0, pos);  // 获取从开头到最后一个点之前的子字符串
-//    for (int i = 0; i < 5; ++i) {
-//        std::string file = result +"/" + std::to_string(i) + fileName;
-//        file_op::File::MkdirFromFile(file);
-//        cv::imwrite(file, topViews[i]);
-//    }
+    std::size_t pos = inputSavePath.find_last_of(".");  // 查找最后一个点的位置
+    std::string result = inputSavePath.substr(0, pos);  // 获取从开头到最后一个点之前的子字符串
 
     // 显示图像
-//    std::string topViewPath = result +"/" + "total_" + fileName;
 //    std::string topViewPath = result +"/" + "all_" + fileName;
+//    std::string topViewDeskPath = result +"/" + "desk_" + fileName;
+//    std::string topViewDeskSelectPath = result +"/" + "select_" + fileName;
 //    file_op::File::MkdirFromFile(topViewPath);
-//    cv::imwrite(topViewPath, topView);
+//    cv::imwrite(topViewPath, topViewAll);
+//    cv::imwrite(topViewDeskPath, topViewDesk);
+//    cv::imwrite(topViewDeskSelectPath, topViewDeskSelect);
+
     cv::imshow("all",topViewAll);
     cv::imshow("desk",topViewDesk);
     cv::imshow("select",topViewDeskSelect);
-    cv::waitKey(200000);
+    cv::waitKey(5000);
 }
 
 bool GetImageData(const std::string inputDir, std::vector<SyncDataFile>& dataset, const bool &flag)
@@ -911,12 +923,14 @@ int cropImage(cv::Mat image,cv::Mat &depth) {
 int main() {
     // 读取图像
     std::vector<SyncDataFile> dataset;
-    std::string inputDir = "/media/xin/data1/data/parker_data/result/CREStereo_MiDaS/CREStereo_big_object_100_tof/scale_tof/louti/data_2023_0822_2"; //数据集路径
+    std::string inputDir = "/media/xin/data1/data/parker_data/result/CREStereo_MiDaS/MADNet_10.6.0/640_400/louti/data_2023_0822_2"; //数据集路径
     psl::CameraMoudleParam param;
     std::string cameraConfigFile = "/home/xin/zhang/c_project/tof/tof_test/config/config.yaml"; //相机配置文件路径
     GetCameraConfig(cameraConfigFile, param);  // 获取相机配置数据
 
     const std::string parkerDir = "/home/xin/zhang/c_project/tof/tof_label/config/param_parker.yaml"; //parker配置文件路径
+    // std::string topViewPath = "/media/xin/data1/test_data/tof_test/louti_data_2023_0822_2_last/tof_with_desk_select/";
+    std::string topViewPath = "/media/xin/data1/test_data/tof_test/MADNet_test/10.6.0/400_test/";
     ConfigParam configParam;
     GetParkerConfig(parkerDir, configParam);  //获取parker配置数据
     GetImageData(inputDir, dataset, true); // 获取数据集
@@ -924,7 +938,7 @@ int main() {
     for (size_t i = 0; i < size; ++i) {
         SyncDataFile item = dataset.at(i);
 //        item.imageLeft = "/media/xin/data1/data/parker_data/tof_label/louti/data_2023_0822_2/result_tof/04_1614045300122480.png";
-        item.imageLeft = "/media/xin/data1/data/parker_data/result/CREStereo_MiDaS/CREStereo_big_object_100_tof/scale_tof/louti/data_2023_0822_2/20210223_1355/cam0/04_1614045300122480.png";
+//        item.imageLeft = "/media/xin/data1/data/parker_data/result/CREStereo_MiDaS/CREStereo_big_object_100_tof/scale_tof/louti/data_2023_0822_2/20210223_1355/cam0/04_1614045300122480.png";
         std::string imageLeftPath(item.imageLeft);
         std::cout << "item.imageLeft: " << imageLeftPath << "\nitem.imageCam0: " << item.imageCam0 << std::endl;
         auto imageLeft = cv::imread(imageLeftPath,-1);
@@ -934,8 +948,6 @@ int main() {
         }
 
         std::string lastTwoParts = getLastTwoPathParts(inputDir);
-//        std::string topViewPath = "/media/xin/data1/test_data/tof_test/louti_data_2023_0822_2_last/tof_with_desk_select/";
-        std::string topViewPath = "/home/xin/Desktop/ll/test/";
         std::string ImagePath = topViewPath + lastTwoParts + item.imageCam0;
         BoxInfo box;
 //         转3D点
@@ -948,7 +960,7 @@ int main() {
         cv::Mat depth;
         cropImage(imageLeft,depth);
         Depth2PointCloud(depth,cloudPoints,selectCloudPoints,imageLeftPath,box,ImagePath, false, true);
-//        Depth2PointCloud(imageLeft,cloudPoints,imageLeftPath,box,ImagePath, false, true);
+//        Depth2PointCloud(imageLeft,cloudPoints,selectCloudPoints,imageLeftPath,box,ImagePath, false, true);
 
 //         遍历并打印点云中的点坐标
 //        for (const Eigen::Vector3d& point : cloudPoints) {
@@ -957,7 +969,7 @@ int main() {
         size_t lastSlashPos = item.imageCam0.find_last_of("/\\"); // 查找最后一个路径分隔符的位置
         std::string fileName = item.imageCam0.substr(lastSlashPos + 1);
         drawCloudTopView(ImagePath,cloudPoints,selectCloudPoints,fileName);
-        break;
+//        break;
     }
     return 0;
 }
