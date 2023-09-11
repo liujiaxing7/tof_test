@@ -608,7 +608,6 @@ int getBox(std::string imageFile,BoxInfo& box,std::string inputSavePath) {
         // 显示图像
         file_op::File::MkdirFromFile(detectPath);
         cv::imwrite(detectPath,image);
-//        cv::imwrite("/home/xin/Desktop/ll/pp/1.png",image);
 //        cv::imshow("ress",image);
 //        cv::waitKey(200000);
     }
@@ -820,6 +819,7 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
             }
         }
     }
+
     std::cout << "【" << topViewHeightMin << ", " << topViewHeightMax << "】" << std::endl;
     std::cout << "高度最小值 " << minY << "\n高度最大值: " << maxY << std::endl;
     std::cout << "距离最小值 " << minZ << "\n距离最大值: " << maxZ << std::endl;
@@ -829,6 +829,7 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
     oss << std::fixed << std::setprecision(2) << minZ;
     std::string min_tof = "min_tof:" + oss.str();
     cv::putText(topViewDeskSelect, min_tof, textPosition, cv::FONT_HERSHEY_SIMPLEX, 1.5, cv::Scalar(0, 0, 255), 2);
+
     // 保存图像
     std::size_t pos = inputSavePath.find_last_of(".");  // 查找最后一个点的位置
     std::string result = inputSavePath.substr(0, pos);  // 获取从开头到最后一个点之前的子字符串
@@ -845,7 +846,7 @@ void drawCloudTopView(std::string inputSavePath,std::vector<Eigen::Vector3d> clo
 //    cv::imshow("all",topViewAll);
 //    cv::imshow("desk",topViewDesk);
 //    cv::imshow("select",topViewDeskSelect);
-//    cv::waitKey(5000);
+//    cv::waitKey(500000);
 }
 
 bool GetImageData(const std::string inputDir, std::vector<SyncDataFile>& dataset, const bool &flag)
@@ -1080,10 +1081,13 @@ int main(int argc, char* argv[]) {
     double topViewHeightMin = std::stod(argv[4]);
     double topViewHeightMax = std::stod(argv[5]);
     GetImageData(inputDir, dataset, true); // 获取数据集
+    // 桌子点云是否去噪
+    bool isDenoise = true;
+
     const size_t size = dataset.size();
     for (size_t i = 0; i < size; ++i) {
         SyncDataFile item = dataset.at(i);
-//        item.imageLeft = "/media/xin/data1/data/parker_data/result/CREStereo_MiDaS/MADNet_10.2.26/400_640/louti/data_2023_0822_2/20210223_1356/cam0/01_1614045357661820.png";
+//        item.imageLeft = "/media/xin/data1/data/parker_data/result/CREStereo_MiDaS/CREStereo_big_object_100_tof/scale_tof/louti/data_2023_0822_2/20210223_1354/cam0/16_1614045252238788.png";
         std::string imageLeftPath(item.imageLeft);
         std::cout << "item.imageLeft: " << imageLeftPath << "\nitem.imageCam0: " << item.imageCam0 << std::endl;
         auto imageLeft = cv::imread(imageLeftPath,-1);
@@ -1106,11 +1110,13 @@ int main(int argc, char* argv[]) {
         cropImage(imageLeft,depth);
         Depth2PointCloud(depth,cloudPoints,selectCloudPoints,imageLeftPath,box,ImagePath, false, true);
 //        Depth2PointCloud(imageLeft,cloudPoints,selectCloudPoints,imageLeftPath,box,ImagePath, false, true);
-        // 桌子的点云去噪
-        cv::Mat3f tofMat = cv::Mat::zeros(box.h, box.w, CV_64FC3);
-        ConvertTof2Mat3f(tofMat,selectCloudPoints);
-        SpeckleFileter3d(tofMat, cv::Scalar(0,0,0),100, 0.02, 0);
-        ConvertMat3f2Tof(tofMat, selectCloudPoints);
+        if (isDenoise){
+            // 桌子的点云去噪
+            cv::Mat3f tofMat = cv::Mat::zeros(box.h, box.w, CV_64FC3);
+            ConvertTof2Mat3f(tofMat,selectCloudPoints);
+            SpeckleFileter3d(tofMat, cv::Scalar(0,0,0),100, 0.02, 2);
+            ConvertMat3f2Tof(tofMat, selectCloudPoints);
+        }
         size_t lastSlashPos = item.imageCam0.find_last_of("/\\"); // 查找最后一个路径分隔符的位置
         std::string fileName = item.imageCam0.substr(lastSlashPos + 1);
         drawCloudTopView(ImagePath,cloudPoints,selectCloudPoints,fileName,topViewHeightMin,topViewHeightMax);
