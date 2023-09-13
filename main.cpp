@@ -26,8 +26,8 @@ const psl::Resolution RESOLUTION = psl::Resolution::RES_640X400;
 const int MAX_DEPTH = 700;
 const int MAX_CHANNEL_VALUE = 255;
 const int MAX_DOUBLE_CHANNEL_VALUE = 511;
-const int WIDTH = 640;
-const int HEIGHT = 400;
+const int WIDTH = 576;
+const int HEIGHT = 360;
 
 
 extern int access(const char *__name, int __type) __THROW __nonnull ((1));
@@ -615,7 +615,7 @@ int getBox(std::string imageFile,BoxInfo& box,std::string inputSavePath) {
 }
 
 
-void Depth2PointCloud(const cv::Mat &depth,std::vector<Eigen::Vector3d> &cloud, std::vector<Eigen::Vector3d> &selectCloudPoints,std::string fileName,BoxInfo &box,std::string inputSavePath,bool usedTof,bool pointsSelected) {
+void Depth2PointCloud(const cv::Mat &depth,std::vector<Eigen::Vector3d> &cloud, std::vector<Eigen::Vector3d> &selectCloudPoints,std::string fileName,BoxInfo &box,std::string inputSavePath,bool usedTof,bool pointsSelected, float bf) {
     if (pointsSelected) {
         getBox(fileName, box, inputSavePath);
     }
@@ -630,8 +630,9 @@ void Depth2PointCloud(const cv::Mat &depth,std::vector<Eigen::Vector3d> &cloud, 
             //            unsigned int d = depth.at<uchar>(m,n*3);
 
             //使用伪深度图
-            unsigned short d = depth.ptr<uint16_t>(m)[n];
-            d = d / 100;
+            unsigned short d1 = depth.ptr<uint16_t>(m)[n];
+            double d =  double (d1) / 256.0;
+            d = bf / d * 100.0;
 
             //使用tof点
             if (usedTof) {
@@ -675,6 +676,22 @@ void Depth2PointCloud(const cv::Mat &depth,std::vector<Eigen::Vector3d> &cloud, 
         }
 }
 
+void PointClound2Depth(const std::vector<Eigen::Vector3d>& cloud, cv::Mat& depth, float bf){
+
+    std::vector<int> list;
+    for (const auto& point : cloud){
+        int u = static_cast<int>(std::round(point.x() * camera_fx / point.z() + camera_cx));
+        int v = static_cast<int>(std::round(point.y() * camera_fy / point.z() + camera_cy));
+
+        if (u >= 0 && u < WIDTH && v >= 0 && v < HEIGHT) {
+            // 将点的深度值转换为相应的像素值，并更新深度图
+            double value = bf / (point.z() * camera_factor) *100.0;
+            value = value * 256.0;
+            unsigned short d = static_cast<unsigned short>(std::round(value));
+            depth.at<uint16_t>(v, u) = d;
+        }
+    }
+}
 //void getPointCloud(cv::Mat imageDisplay,std::vector<cv::Point> imagePoints, std::vector<int> depthValues,std::vector<Eigen::Vector3d> &cloud, bool usedTof){
 //
 //    {
@@ -1063,7 +1080,7 @@ void SpeckleFileter3d(cv::Mat3f& src, cv::Scalar newVal, int areaThred, float th
 
 int main(int argc, char* argv[]) {
     // 检查参数数量是否正确
-    if (argc < 6) {
+    if (argc < 4) {
         std::cout << "参数不足！请提供路径和有效数据！" << std::endl;
         return 1;
     }
@@ -1078,8 +1095,9 @@ int main(int argc, char* argv[]) {
 
 //    std::string topViewPath = "/media/xin/data1/test_data/tof_test/MADNet_test/10.2.26/400_test_min_tof_0525/";
     std::string topViewPath = argv[3];
-    double topViewHeightMin = std::stod(argv[4]);
-    double topViewHeightMax = std::stod(argv[5]);
+    float bf = atof(argv[4]);
+//    double topViewHeightMin = std::stod(argv[4]);
+//    double topViewHeightMax = std::stod(argv[5]);
     GetImageData(inputDir, dataset, true); // 获取数据集
     // 桌子点云是否去噪
     bool isDenoise = true;
@@ -1107,19 +1125,30 @@ int main(int argc, char* argv[]) {
         std::vector<Eigen::Vector3d> cloudPoints;
         std::vector<Eigen::Vector3d> selectCloudPoints;
         cv::Mat depth;
-        cropImage(imageLeft,depth);
-        Depth2PointCloud(depth,cloudPoints,selectCloudPoints,imageLeftPath,box,ImagePath, false, true);
+        depth = imageLeft;
+//        cropImage(imageLeft,depth);
+        Depth2PointCloud(depth,cloudPoints,selectCloudPoints,imageLeftPath,box,ImagePath, false, false, bf);
 //        Depth2PointCloud(imageLeft,cloudPoints,selectCloudPoints,imageLeftPath,box,ImagePath, false, true);
         if (isDenoise){
             // 桌子的点云去噪
-            cv::Mat3f tofMat = cv::Mat::zeros(box.h, box.w, CV_64FC3);
-            ConvertTof2Mat3f(tofMat,selectCloudPoints);
-            SpeckleFileter3d(tofMat, cv::Scalar(0,0,0),100, 0.02, 2);
-            ConvertMat3f2Tof(tofMat, selectCloudPoints);
+            cv::Mat3f tofMat = cv::Mat::zeros(HEIGHT, WIDTH, CV_64FC3);
+            ConvertTof2Mat3f(tofMat,cloudPoints);
+            SpeckleFileter3d(tofMat, cv::Scalar(0,0,0),100, 0.01, 2);
+            ConvertMat3f2Tof(tofMat, cloudPoints);
         }
+
+        cv::Mat depthRenoise(HEIGHT, WIDTH, CV_16UC1, cv::Scalar(0));
+        PointClound2Depth(cloudPoints,depthRenoise,bf);
+
+
         size_t lastSlashPos = item.imageCam0.find_last_of("/\\"); // 查找最后一个路径分隔符的位置
-        std::string fileName = item.imageCam0.substr(lastSlashPos + 1);
-        drawCloudTopView(ImagePath,cloudPoints,selectCloudPoints,fileName,topViewHeightMin,topViewHeightMax);
+        std::string fileName = lastTwoParts + item.imageCam0;
+        file_op::File::MkdirFromFile(fileName);
+
+        cv::threshold(depthRenoise, depthRenoise, 65535, 65535, cv::THRESH_TRUNC);
+        cv::threshold(depthRenoise, depthRenoise, 0, 0, cv::THRESH_TOZERO);
+        cv::imwrite(fileName, depthRenoise) ;
+//        drawCloudTopView(ImagePath,cloudPoints,selectCloudPoints,fileName,topViewHeightMin,topViewHeightMax);
 //        break;
     }
     return 0;
